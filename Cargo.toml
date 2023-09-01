@@ -39,3 +39,5 @@ npm-scope = "@axodotdev"
 create-release = false
 # Publish jobs to run in CI
 pr-run-mode = "plan"
+publish-jobs = ["homebrew"]
+tap = "axodotdev/formulas"
