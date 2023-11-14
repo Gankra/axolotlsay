@@ -1,5 +1,5 @@
 # After a release is successfully published, upload cargodisttest-example.txt
-name: AppendRelease
+name: AppendRelease2
 
 # We're going to edit a gh release, so we need that permission
 permissions:
@@ -14,13 +14,40 @@ on:
 
 # Alright, let's do it!
 jobs:
+  should-run:
+    runs-on: ubuntu-latest
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    outputs:
+      val: ${{ steps.check.outputs.result }}
+    steps:
+      - id: check
+        uses: actions/github-script@v6
+        with:
+          result-encoding: string
+          script: |
+            let allRuns = await github.rest.actions.listJobsForWorkflowRun({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              run_id: context.payload.workflow_run.id,
+            });
+            for (const job of allRuns.data.jobs) {
+              if (job.name == "should-publish") {
+                if (job.status == "completed" && job.conclusion == "success") {
+                  return "run"
+                }
+              }
+            }
+            return "skip"
+
+
   # upload the example
   example:
+    needs: ["should-run"]
+    if: ${{ needs.should-run.outputs.val == 'run' }}
     name: Add example to release
     env:
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     runs-on: ubuntu-latest
-    if: ${{ github.event.workflow_run.conclusion == 'success' }}
     steps:
       # Setup
       - uses: actions/checkout@v3
@@ -33,5 +60,5 @@ jobs:
         run: |
           echo "uploading schema to ${{ github.event.workflow_run.head_branch }}"
           curl --proto '=https' --tlsv1.2 -LsSf https://github.com/Gankra/cargodisttest/releases/download/${{ github.event.workflow_run.head_branch }}/cargodisttest-installer.sh | sh
-          cargodisttest "hello" > cargodisttest-example.txt 
+          cargodisttest "hello" > cargodisttest-example.txt
           gh release upload ${{ github.event.workflow_run.head_branch }} cargodisttest-example.txt
